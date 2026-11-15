@@ -1,0 +1,10 @@
+<svg width="100" height="100" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="itclip">
+      <g transform="translate(40 0)">
+        <rect x="0" y="0" width="20" height="100"/>
+      </g>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="100" height="100" fill="#ff0000" clip-path="url(#itclip)"/>
+</svg>

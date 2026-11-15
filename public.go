@@ -29,7 +29,8 @@ import (
 // if it does not handle an element found in the icon file. Ignore warnings is
 // the default if no ErrorMode value is provided.
 func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
-	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*rasterx.Gradient), Transform: rasterx.Identity}
+	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*rasterx.Gradient),
+		ClipPaths: make(map[string]*ClipPath), Transform: rasterx.Identity}
 	cursor := &IconCursor{StyleStack: []PathStyle{DefaultStyle}, icon: icon}
 	if len(errMode) > 0 {
 		cursor.ErrorMode = errMode[0]
@@ -83,6 +84,9 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 				cursor.inDefs = false
 			case "radialGradient", "linearGradient":
 				cursor.inGrad = false
+			case "clipPath":
+				cursor.inClipPath = false
+				cursor.curClipPath = nil
 
 			case "style":
 				if cursor.inDefsStyle {
@@ -103,6 +107,11 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			if cursor.inDefsStyle {
 				classInfo = string(se)
 			}
+		}
+	}
+	if err := cursor.validateClipRefs(); err != nil {
+		if cursor.returnError(err.Error()) {
+			return icon, err
 		}
 	}
 	return icon, nil

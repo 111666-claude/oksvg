@@ -34,6 +34,7 @@ var (
 		"defs":           defsF,
 		"style":          styleF,
 		"title":          titleF,
+		"clipPath":       clipPathF,
 		"linearGradient": linearGradientF,
 		"radialGradient": radialGradientF,
 	}
@@ -215,6 +216,31 @@ var (
 		c.inDefs = true
 		return nil
 	}
+	clipPathF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
+		c.inClipPath = true
+		c.curClipPath = &ClipPath{}
+		// Clip shapes are compiled in the user space of the element that
+		// references the clipPath, so transforms above the clipPath element
+		// (e.g. on an enclosing defs) must not apply to them.
+		c.StyleStack[len(c.StyleStack)-1].mAdder.M = rasterx.Identity
+		for _, attr := range attrs {
+			switch attr.Name.Local {
+			case "id":
+				if len(attr.Value) == 0 {
+					return errZeroLengthID
+				}
+				c.icon.ClipPaths[attr.Value] = c.curClipPath
+			case "clipPathUnits":
+				switch strings.TrimSpace(attr.Value) {
+				case "userSpaceOnUse":
+					// default and only supported unit space
+				default:
+					return errors.New("clipPathUnits " + attr.Value + " is not supported")
+				}
+			}
+		}
+		return nil
+	}
 	styleF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
 		c.inDefsStyle = true
 		return nil
@@ -373,7 +399,7 @@ var (
 				//The cursor parsed a path from the xml element
 				pathCopy := make(rasterx.Path, len(c.Path))
 				copy(pathCopy, c.Path)
-				c.icon.SVGPaths = append(c.icon.SVGPaths, SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+				c.addSvgPath(SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
 				c.Path = c.Path[:0]
 			}
 			if def.Tag != "g" {

@@ -114,6 +114,21 @@ func parseAttrs(attrStr string) (styleAttribute, error) {
 	return res, nil
 }
 
+// parseClipURL reads a clip-path property value of the form url(#id)
+// and returns the referenced local id.
+func parseClipURL(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if !strings.HasPrefix(v, "url(") || !strings.HasSuffix(v, ")") {
+		return "", errors.New("unsupported clip-path value " + v)
+	}
+	id := strings.TrimSpace(v[4 : len(v)-1])
+	id = strings.Trim(id, `"'`)
+	if !strings.HasPrefix(id, "#") {
+		return "", errors.New("only local clip-path references are supported: " + v)
+	}
+	return id[1:], nil
+}
+
 func readFraction(v string) (f float64, err error) {
 	v = strings.TrimSpace(v)
 	d := 1.0

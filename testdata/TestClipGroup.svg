@@ -1,0 +1,11 @@
+<svg width="100" height="100" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="gclip">
+      <rect x="0" y="0" width="50" height="100"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#gclip)">
+    <rect x="0" y="0" width="100" height="50" fill="#ff0000"/>
+    <rect x="0" y="50" width="100" height="50" fill="#0000ff"/>
+  </g>
+</svg>

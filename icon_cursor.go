@@ -24,6 +24,8 @@ type IconCursor struct {
 	StyleStack                                           []PathStyle
 	grad                                                 *rasterx.Gradient
 	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
+	inClipPath                                           bool
+	curClipPath                                          *ClipPath
 	currentDef                                           []definition
 }
 
@@ -315,13 +317,25 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			return err
 		}
 		curStyle.mAdder.M = m
+	case "clip-path":
+		if v == "none" {
+			break
+		}
+		id, err := parseClipURL(v)
+		if err != nil {
+			return err
+		}
+		// Copy the parent's slice so appending cannot mutate it;
+		// clips accumulate down the tree and intersect at draw time.
+		curStyle.clipPathIDs = append(append([]string(nil), curStyle.clipPathIDs...), id)
 	}
 	return nil
 }
 
 func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	var skipDef bool
-	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad {
+	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad ||
+		se.Name.Local == "clipPath" || c.inClipPath {
 		skipDef = true
 	}
 	if c.inDefs && !skipDef {
@@ -354,7 +368,7 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	if err != nil {
 		e := fmt.Sprintf("error during processing svg element %s: %s", se.Name.Local, err.Error())
 		if c.returnError(e) {
-			err = errors.New(e)
+			return errors.New(e)
 		}
 		err = nil
 	}
@@ -363,11 +377,64 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 		//The cursor parsed a path from the xml element
 		pathCopy := make(rasterx.Path, len(c.Path))
 		copy(pathCopy, c.Path)
-		c.icon.SVGPaths = append(c.icon.SVGPaths,
-			SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+		c.addSvgPath(SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
 		c.Path = c.Path[:0]
 	}
 	return
+}
+
+// addSvgPath appends a parsed shape to the current clipPath when one is
+// being parsed, and to the icon's draw list otherwise.
+func (c *IconCursor) addSvgPath(svgp SvgPath) {
+	if c.inClipPath && c.curClipPath != nil {
+		c.curClipPath.Shapes = append(c.curClipPath.Shapes, svgp)
+	} else {
+		c.icon.SVGPaths = append(c.icon.SVGPaths, svgp)
+	}
+}
+
+// validateClipRefs checks that every clip-path reference resolves to a
+// defined clipPath and that clipPaths do not reference each other in a
+// cycle. It is called once parsing completes.
+func (c *IconCursor) validateClipRefs() error {
+	for _, svgp := range c.icon.SVGPaths {
+		for _, id := range svgp.clipPathIDs {
+			if _, ok := c.icon.ClipPaths[id]; !ok {
+				return fmt.Errorf("clip-path reference %q not found in clipPath definitions", id)
+			}
+		}
+	}
+	visiting := make(map[string]bool)
+	done := make(map[string]bool)
+	var visit func(id string) error
+	visit = func(id string) error {
+		if done[id] {
+			return nil
+		}
+		if visiting[id] {
+			return fmt.Errorf("circular clipPath reference involving %q", id)
+		}
+		visiting[id] = true
+		defer delete(visiting, id)
+		for _, shape := range c.icon.ClipPaths[id].Shapes {
+			for _, ref := range shape.clipPathIDs {
+				if _, ok := c.icon.ClipPaths[ref]; !ok {
+					return fmt.Errorf("clip-path reference %q not found in clipPath definitions", ref)
+				}
+				if err := visit(ref); err != nil {
+					return err
+				}
+			}
+		}
+		done[id] = true
+		return nil
+	}
+	for id := range c.icon.ClipPaths {
+		if err := visit(id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *IconCursor) adaptClasses(pathStyle *PathStyle, className string) {

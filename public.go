@@ -29,7 +29,7 @@ import (
 // if it does not handle an element found in the icon file. Ignore warnings is
 // the default if no ErrorMode value is provided.
 func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
-	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*rasterx.Gradient), Transform: rasterx.Identity}
+	icon := &SvgIcon{Defs: make(map[string][]definition), Grads: make(map[string]*rasterx.Gradient), Patterns: make(map[string]*SvgPattern), Transform: rasterx.Identity}
 	cursor := &IconCursor{StyleStack: []PathStyle{DefaultStyle}, icon: icon}
 	if len(errMode) > 0 {
 		cursor.ErrorMode = errMode[0]
@@ -66,7 +66,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			cursor.StyleStack = cursor.StyleStack[:len(cursor.StyleStack)-1]
 			switch se.Name.Local {
 			case "g":
-				if cursor.inDefs {
+				if cursor.inDefs && !cursor.inPattern {
 					cursor.currentDef = append(cursor.currentDef, definition{
 						Tag: "endg",
 					})
@@ -83,6 +83,14 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 				cursor.inDefs = false
 			case "radialGradient", "linearGradient":
 				cursor.inGrad = false
+
+			case "pattern":
+				// Close the innermost pattern; nested patterns return to the
+				// pattern that contains them.
+				if n := len(cursor.patternStack); n > 0 {
+					cursor.patternStack = cursor.patternStack[:n-1]
+				}
+				cursor.inPattern = len(cursor.patternStack) > 0
 
 			case "style":
 				if cursor.inDefsStyle {
@@ -105,7 +113,31 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			}
 		}
 	}
+	resolvePatternRefs(icon)
 	return icon, nil
+}
+
+// resolvePatternRefs replaces every patternRef left on a fill or stroke during
+// parsing with the parsed SvgPattern. Running after the full document is read
+// means forward references resolve as well. Unknown references become nil so
+// the affected paint is simply disabled instead of painting black.
+func resolvePatternRefs(icon *SvgIcon) {
+	resolve := func(style *PathStyle) {
+		if ref, ok := style.fillerColor.(patternRef); ok {
+			style.fillerColor = icon.Patterns[ref.id]
+		}
+		if ref, ok := style.linerColor.(patternRef); ok {
+			style.linerColor = icon.Patterns[ref.id]
+		}
+	}
+	for i := range icon.SVGPaths {
+		resolve(&icon.SVGPaths[i].PathStyle)
+	}
+	for _, p := range icon.Patterns {
+		for i := range p.Paths {
+			resolve(&p.Paths[i].PathStyle)
+		}
+	}
 }
 
 // ReadReplacingCurrentColor replaces currentColor value with specified value and loads SvgIcon as ReadIconStream do.

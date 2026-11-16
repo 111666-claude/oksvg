@@ -36,6 +36,7 @@ var (
 		"title":          titleF,
 		"linearGradient": linearGradientF,
 		"radialGradient": radialGradientF,
+		"pattern":        patternF,
 	}
 
 	svgF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
@@ -373,7 +374,13 @@ var (
 				//The cursor parsed a path from the xml element
 				pathCopy := make(rasterx.Path, len(c.Path))
 				copy(pathCopy, c.Path)
-				c.icon.SVGPaths = append(c.icon.SVGPaths, SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+				svgPath := SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy}
+				if c.inPattern {
+					c.patternStack[len(c.patternStack)-1].Paths = append(
+						c.patternStack[len(c.patternStack)-1].Paths, svgPath)
+				} else {
+					c.icon.SVGPaths = append(c.icon.SVGPaths, svgPath)
+				}
 				c.Path = c.Path[:0]
 			}
 			if def.Tag != "g" {

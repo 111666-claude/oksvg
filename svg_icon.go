@@ -15,6 +15,7 @@ type SvgIcon struct {
 	Titles       []string // Title elements collect here
 	Descriptions []string // Description elements collect here
 	Grads        map[string]*rasterx.Gradient
+	Patterns     map[string]*SvgPattern
 	Defs         map[string][]definition
 	SVGPaths     []SvgPath
 	Transform    rasterx.Matrix2D
@@ -24,8 +25,15 @@ type SvgIcon struct {
 // Draw the compiled SVG icon into the GraphicContext.
 // All elements should be contained by the Bounds rectangle of the SvgIcon.
 func (s *SvgIcon) Draw(r *rasterx.Dasher, opacity float64) {
+	dc := &drawContext{
+		icon:       s,
+		raster:     r,
+		opacity:    opacity,
+		active:     map[*SvgPattern]bool{},
+		userMatrix: rasterx.Identity,
+	}
 	for _, svgp := range s.SVGPaths {
-		svgp.DrawTransformed(r, opacity, s.Transform)
+		svgp.drawTransformed(r, opacity, s.Transform, dc)
 	}
 }
 

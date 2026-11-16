@@ -24,6 +24,8 @@ type IconCursor struct {
 	StyleStack                                           []PathStyle
 	grad                                                 *rasterx.Gradient
 	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
+	inPattern                                            bool
+	patternStack                                         []*SvgPattern
 	currentDef                                           []definition
 }
 
@@ -43,6 +45,21 @@ func (c *IconCursor) ReadGradURL(v string, defaultColor interface{}) (grad raste
 		}
 	}
 	return
+}
+
+// readPaintRef resolves a "url(#id)" paint reference into either a parsed
+// gradient or a deferred pattern reference. Non-reference values report
+// isRef=false and are handled by the caller. Gradients take precedence so a
+// paint id shared by both paint families is never mistaken for a pattern.
+func (c *IconCursor) readPaintRef(v string, defaultColor interface{}) (paint interface{}, isRef bool) {
+	ref, ok := readPatternURL(v)
+	if !ok {
+		return nil, false
+	}
+	if g, isGrad := c.icon.Grads[ref.id]; isGrad {
+		return localizeGradIfStopClrNil(g, defaultColor), true
+	}
+	return ref, true
 }
 
 // ReadGradAttr reads an SVG gradient attribute
@@ -191,18 +208,16 @@ func (c *IconCursor) parseTransform(v string) (rasterx.Matrix2D, error) {
 func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 	switch k {
 	case "fill":
-		gradient, ok := c.ReadGradURL(v, curStyle.fillerColor)
-		if ok {
-			curStyle.fillerColor = gradient
+		if paint, isRef := c.readPaintRef(v, curStyle.fillerColor); isRef {
+			curStyle.fillerColor = paint
 			break
 		}
 		var err error
 		curStyle.fillerColor, err = ParseSVGColor(v)
 		return err
 	case "stroke":
-		gradient, ok := c.ReadGradURL(v, curStyle.linerColor)
-		if ok {
-			curStyle.linerColor = gradient
+		if paint, isRef := c.readPaintRef(v, curStyle.linerColor); isRef {
+			curStyle.linerColor = paint
 			break
 		}
 		col, errc := ParseSVGColor(v)
@@ -324,7 +339,12 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad {
 		skipDef = true
 	}
-	if c.inDefs && !skipDef {
+	if se.Name.Local == "pattern" {
+		// Patterns are collected into SvgIcon.Patterns; their child shapes
+		// are parsed normally but redirected onto the pattern's path list.
+		skipDef = true
+	}
+	if c.inDefs && !skipDef && !c.inPattern {
 		ID := ""
 		for _, attr := range se.Attr {
 			if attr.Name.Local == "id" {
@@ -363,8 +383,15 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 		//The cursor parsed a path from the xml element
 		pathCopy := make(rasterx.Path, len(c.Path))
 		copy(pathCopy, c.Path)
-		c.icon.SVGPaths = append(c.icon.SVGPaths,
-			SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+		if c.inPattern {
+			// Shapes inside a pattern belong to the tile, not to the icon.
+			p := c.patternStack[len(c.patternStack)-1]
+			p.Paths = append(p.Paths,
+				SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+		} else {
+			c.icon.SVGPaths = append(c.icon.SVGPaths,
+				SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+		}
 		c.Path = c.Path[:0]
 	}
 	return

@@ -309,6 +309,20 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 		if k != "fill-opacity" {
 			curStyle.LineOpacity *= op
 		}
+	case "marker", "marker-start", "marker-mid", "marker-end":
+		id, err := parseMarkerRef(v)
+		if err != nil {
+			return err
+		}
+		if k == "marker" || k == "marker-start" {
+			curStyle.markerStartID = id
+		}
+		if k == "marker" || k == "marker-mid" {
+			curStyle.markerMidID = id
+		}
+		if k == "marker" || k == "marker-end" {
+			curStyle.markerEndID = id
+		}
 	case "transform":
 		m, err := c.parseTransform(v)
 		if err != nil {

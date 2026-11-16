@@ -86,6 +86,8 @@ func (svgp *SvgPath) DrawTransformed(r *rasterx.Dasher, opacity float64, t raste
 		}
 		r.Draw()
 	}
+	// Markers are drawn last, on top of the path's fill and stroke.
+	svgp.drawMarkers(r, opacity)
 }
 
 // GetFillColor returns the fill color of the SvgPath if one is defined and otherwise returns colornames.Black

@@ -346,44 +346,51 @@ var (
 		if !ok {
 			return errors.New("href ID in use statement was not found in saved defs")
 		}
-		for _, def := range defs {
-			if def.Tag == "endg" {
-				// pop style
-				c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
-				continue
-			}
-			if err = c.PushStyle(def.Attrs); err != nil {
-				return err
-			}
-			df, ok := drawFuncs[def.Tag]
-			if !ok {
-				errStr := "Cannot process svg element " + def.Tag
-				if c.ErrorMode == StrictErrorMode {
-					return errors.New(errStr)
-				} else if c.ErrorMode == WarnErrorMode {
-					log.Println(errStr)
-				}
-				return nil
-			}
-			if err := df(c, def.Attrs); err != nil {
-				return err
-			}
-			//Did c.Path get added to during the drawFunction call iteration?
-			if len(c.Path) > 0 {
-				//The cursor parsed a path from the xml element
-				pathCopy := make(rasterx.Path, len(c.Path))
-				copy(pathCopy, c.Path)
-				c.icon.SVGPaths = append(c.icon.SVGPaths, SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
-				c.Path = c.Path[:0]
-			}
-			if def.Tag != "g" {
-				// pop style
-				c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
-			}
-		}
-		return nil
+		return c.drawDefs(defs)
 	}
 )
+
+// drawDefs replays a saved defs element list through the cursor, appending
+// any generated paths to the cursor's icon. It is shared by the use element
+// and by marker content compilation.
+func (c *IconCursor) drawDefs(defs []definition) error {
+	for _, def := range defs {
+		if def.Tag == "endg" {
+			// pop style
+			c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
+			continue
+		}
+		if err := c.PushStyle(def.Attrs); err != nil {
+			return err
+		}
+		df, ok := drawFuncs[def.Tag]
+		if !ok {
+			errStr := "Cannot process svg element " + def.Tag
+			if c.ErrorMode == StrictErrorMode {
+				return errors.New(errStr)
+			} else if c.ErrorMode == WarnErrorMode {
+				log.Println(errStr)
+			}
+			return nil
+		}
+		if err := df(c, def.Attrs); err != nil {
+			return err
+		}
+		//Did c.Path get added to during the drawFunction call iteration?
+		if len(c.Path) > 0 {
+			//The cursor parsed a path from the xml element
+			pathCopy := make(rasterx.Path, len(c.Path))
+			copy(pathCopy, c.Path)
+			c.icon.SVGPaths = append(c.icon.SVGPaths, SvgPath{c.StyleStack[len(c.StyleStack)-1], pathCopy})
+			c.Path = c.Path[:0]
+		}
+		if def.Tag != "g" {
+			// pop style
+			c.StyleStack = c.StyleStack[:len(c.StyleStack)-1]
+		}
+	}
+	return nil
+}
 
 func init() {
 	// avoids cyclical static declaration

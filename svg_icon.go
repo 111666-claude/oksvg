@@ -16,6 +16,7 @@ type SvgIcon struct {
 	Descriptions []string // Description elements collect here
 	Grads        map[string]*rasterx.Gradient
 	Defs         map[string][]definition
+	Markers      map[string]*Marker // compiled marker definitions from defs
 	SVGPaths     []SvgPath
 	Transform    rasterx.Matrix2D
 	classes      map[string]styleAttribute

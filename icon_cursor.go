@@ -25,6 +25,7 @@ type IconCursor struct {
 	grad                                                 *rasterx.Gradient
 	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
 	currentDef                                           []definition
+	maskGroupCount                                       int
 }
 
 // ReadGradURL reads an SVG format gradient url
@@ -88,11 +89,25 @@ func (c *IconCursor) PushStyle(attrs []xml.Attr) error {
 	}
 	// Make a copy of the top style
 	curStyle := c.StyleStack[len(c.StyleStack)-1]
+	// Apply transforms first, so that attributes captured during style
+	// parsing (such as mask) see the element's own transform regardless
+	// of attribute order.
+	for _, pair := range pairs {
+		kv := strings.Split(pair, ":")
+		if len(kv) >= 2 && strings.TrimSpace(strings.ToLower(kv[0])) == "transform" {
+			if err := c.readStyleAttr(&curStyle, "transform", strings.TrimSpace(kv[1])); err != nil {
+				return err
+			}
+		}
+	}
 	for _, pair := range pairs {
 		kv := strings.Split(pair, ":")
 		if len(kv) >= 2 {
 			k := strings.ToLower(kv[0])
 			k = strings.TrimSpace(k)
+			if k == "transform" {
+				continue // already applied above
+			}
 			v := strings.TrimSpace(kv[1])
 			err := c.readStyleAttr(&curStyle, k, v)
 			if err != nil {
@@ -297,6 +312,23 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			}
 			curStyle.Dash = dList
 			break
+		}
+	case "mask":
+		mv := strings.TrimSpace(v)
+		if mv == "" || mv == "none" {
+			curStyle.maskRef = nil
+			break
+		}
+		if strings.HasPrefix(mv, "url(") && strings.HasSuffix(mv, ")") {
+			if id := strings.TrimSpace(mv[4 : len(mv)-1]); len(id) > 1 && id[0] == '#' {
+				c.maskGroupCount++
+				curStyle.maskRef = &maskReference{id: id[1:], group: c.maskGroupCount, m: curStyle.mAdder.M}
+				break
+			}
+		}
+		errStr := "unsupported mask value " + mv
+		if c.returnError(errStr) {
+			return errors.New(errStr)
 		}
 	case "opacity", "stroke-opacity", "fill-opacity":
 		op, err := parseFloat(v, 64)

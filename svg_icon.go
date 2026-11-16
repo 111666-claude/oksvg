@@ -24,8 +24,21 @@ type SvgIcon struct {
 // Draw the compiled SVG icon into the GraphicContext.
 // All elements should be contained by the Bounds rectangle of the SvgIcon.
 func (s *SvgIcon) Draw(r *rasterx.Dasher, opacity float64) {
-	for _, svgp := range s.SVGPaths {
-		svgp.DrawTransformed(r, opacity, s.Transform)
+	for i := 0; i < len(s.SVGPaths); {
+		mr := s.SVGPaths[i].maskRef
+		if mr == nil {
+			s.SVGPaths[i].DrawTransformed(r, opacity, s.Transform)
+			i++
+			continue
+		}
+		// All consecutive paths sharing one maskReference belong to the
+		// same masked element and are composited as a unit.
+		j := i + 1
+		for j < len(s.SVGPaths) && s.SVGPaths[j].maskRef == mr {
+			j++
+		}
+		s.drawMasked(r, opacity, mr, s.SVGPaths[i:j])
+		i = j
 	}
 }
 

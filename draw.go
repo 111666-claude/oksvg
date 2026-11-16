@@ -36,6 +36,7 @@ var (
 		"title":          titleF,
 		"linearGradient": linearGradientF,
 		"radialGradient": radialGradientF,
+		"mask":           maskF,
 	}
 
 	svgF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
@@ -213,6 +214,11 @@ var (
 	}
 	defsF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
 		c.inDefs = true
+		return nil
+	}
+	maskF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
+		// Mask elements are only collected as definitions inside defs;
+		// a mask element elsewhere is not rendered directly.
 		return nil
 	}
 	styleF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {

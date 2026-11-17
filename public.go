@@ -58,7 +58,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			if err != nil {
 				return icon, err
 			}
-			if se.Name.Local == "style" && cursor.inDefs {
+			if se.Name.Local == "style" && cursor.inDefs > 0 {
 				cursor.inDefsStyle = true
 			}
 		case xml.EndElement:
@@ -66,7 +66,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			cursor.StyleStack = cursor.StyleStack[:len(cursor.StyleStack)-1]
 			switch se.Name.Local {
 			case "g":
-				if cursor.inDefs {
+				if cursor.inDefs > 0 {
 					cursor.currentDef = append(cursor.currentDef, definition{
 						Tag: "endg",
 					})
@@ -75,12 +75,24 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 				cursor.inTitleText = false
 			case "desc":
 				cursor.inDescText = false
+			case "clipPath":
+				cursor.clipPathDepth--
+				if cursor.clipPathDepth == 0 {
+					if len(cursor.currentDef) > 0 && cursor.currentDef[0].Tag == "clipPath" {
+						cursor.icon.Defs[cursor.currentDef[0].ID] = cursor.currentDef
+						cursor.currentDef = make([]definition, 0)
+					}
+					if cursor.outOfDefsClipPath {
+						cursor.outOfDefsClipPath = false
+						cursor.inDefs--
+					}
+				}
 			case "defs":
 				if len(cursor.currentDef) > 0 {
 					cursor.icon.Defs[cursor.currentDef[0].ID] = cursor.currentDef
 					cursor.currentDef = make([]definition, 0)
 				}
-				cursor.inDefs = false
+				cursor.inDefs--
 			case "radialGradient", "linearGradient":
 				cursor.inGrad = false
 
@@ -105,6 +117,7 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			}
 		}
 	}
+	icon.resolveClipPaths(cursor.ErrorMode)
 	return icon, nil
 }
 

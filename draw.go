@@ -212,7 +212,7 @@ var (
 		return nil
 	}
 	defsF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {
-		c.inDefs = true
+		c.inDefs++
 		return nil
 	}
 	styleF svgFunc = func(c *IconCursor, attrs []xml.Attr) error {

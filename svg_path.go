@@ -25,6 +25,15 @@ func (svgp *SvgPath) Draw(r *rasterx.Dasher, opacity float64) {
 
 // DrawTransformed draws the compiled SvgPath into the Dasher while applying transform t.
 func (svgp *SvgPath) DrawTransformed(r *rasterx.Dasher, opacity float64, t rasterx.Matrix2D) {
+	if len(svgp.clips) > 0 && svgp.drawClipped(r, opacity, t) {
+		return
+	}
+	svgp.drawUnclipped(r, opacity, t)
+}
+
+// drawUnclipped draws the compiled SvgPath into the Dasher while applying
+// transform t, without applying any clip path.
+func (svgp *SvgPath) drawUnclipped(r *rasterx.Dasher, opacity float64, t rasterx.Matrix2D) {
 	m := svgp.mAdder.M
 	svgp.mAdder.M = t.Mult(m)
 	defer func() { svgp.mAdder.M = m }() // Restore untransformed matrix

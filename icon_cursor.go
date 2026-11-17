@@ -20,11 +20,14 @@ import (
 // IconCursor is used while parsing SVG files.
 type IconCursor struct {
 	PathCursor
-	icon                                                 *SvgIcon
-	StyleStack                                           []PathStyle
-	grad                                                 *rasterx.Gradient
-	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
-	currentDef                                           []definition
+	icon                                         *SvgIcon
+	StyleStack                                   []PathStyle
+	grad                                         *rasterx.Gradient
+	inTitleText, inDescText, inGrad, inDefsStyle bool
+	inDefs                                       int // nesting depth of defs-like sections
+	clipPathDepth                                int
+	outOfDefsClipPath                            bool
+	currentDef                                   []definition
 }
 
 // ReadGradURL reads an SVG format gradient url
@@ -315,6 +318,14 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			return err
 		}
 		curStyle.mAdder.M = m
+	case "clip-path":
+		if ref, ok := parseClipURL(v); ok {
+			// Copy the inherited refs before appending so the
+			// parent's slice is never mutated.
+			refs := make([]string, len(curStyle.clipPathRefs), len(curStyle.clipPathRefs)+1)
+			copy(refs, curStyle.clipPathRefs)
+			curStyle.clipPathRefs = append(refs, ref)
+		}
 	}
 	return nil
 }
@@ -324,14 +335,23 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad {
 		skipDef = true
 	}
-	if c.inDefs && !skipDef {
+	if se.Name.Local == "clipPath" {
+		c.clipPathDepth++
+		if c.inDefs == 0 && c.clipPathDepth == 1 {
+			// A clipPath outside of a defs section is collected as a
+			// definition just as if it were inside one; it is never drawn.
+			c.inDefs++
+			c.outOfDefsClipPath = true
+		}
+	}
+	if c.inDefs > 0 && !skipDef {
 		ID := ""
 		for _, attr := range se.Attr {
 			if attr.Name.Local == "id" {
 				ID = attr.Value
 			}
 		}
-		if ID != "" && len(c.currentDef) > 0 {
+		if ID != "" && len(c.currentDef) > 0 && c.currentDef[0].Tag != "clipPath" {
 			c.icon.Defs[c.currentDef[0].ID] = c.currentDef
 			c.currentDef = make([]definition, 0)
 		}

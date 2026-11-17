@@ -16,6 +16,7 @@ type SvgIcon struct {
 	Descriptions []string // Description elements collect here
 	Grads        map[string]*rasterx.Gradient
 	Defs         map[string][]definition
+	Filters      map[string]*Filter
 	SVGPaths     []SvgPath
 	Transform    rasterx.Matrix2D
 	classes      map[string]styleAttribute
@@ -24,8 +25,22 @@ type SvgIcon struct {
 // Draw the compiled SVG icon into the GraphicContext.
 // All elements should be contained by the Bounds rectangle of the SvgIcon.
 func (s *SvgIcon) Draw(r *rasterx.Dasher, opacity float64) {
-	for _, svgp := range s.SVGPaths {
-		svgp.DrawTransformed(r, opacity, s.Transform)
+	for i := 0; i < len(s.SVGPaths); {
+		fr := s.SVGPaths[i].filterRef
+		f := s.resolveFilter(fr)
+		if f == nil {
+			s.SVGPaths[i].DrawTransformed(r, opacity, s.Transform)
+			i++
+			continue
+		}
+		// Consecutive paths parsed under the same filter attribute form
+		// one group whose composite alpha casts a single shadow.
+		j := i + 1
+		for j < len(s.SVGPaths) && s.SVGPaths[j].filterRef == fr {
+			j++
+		}
+		s.drawFiltered(r, s.SVGPaths[i:j], f, opacity)
+		i = j
 	}
 }
 

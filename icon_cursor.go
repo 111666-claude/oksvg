@@ -24,6 +24,8 @@ type IconCursor struct {
 	StyleStack                                           []PathStyle
 	grad                                                 *rasterx.Gradient
 	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
+	inFilter                                             bool
+	filter                                               *Filter
 	currentDef                                           []definition
 }
 
@@ -315,6 +317,8 @@ func (c *IconCursor) readStyleAttr(curStyle *PathStyle, k, v string) error {
 			return err
 		}
 		curStyle.mAdder.M = m
+	case "filter":
+		curStyle.filterRef = parseFilterRef(v)
 	}
 	return nil
 }
@@ -323,6 +327,9 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	var skipDef bool
 	if se.Name.Local == "radialGradient" || se.Name.Local == "linearGradient" || c.inGrad {
 		skipDef = true
+	}
+	if se.Name.Local == "filter" || c.inFilter {
+		return c.readFilterElement(se)
 	}
 	if c.inDefs && !skipDef {
 		ID := ""

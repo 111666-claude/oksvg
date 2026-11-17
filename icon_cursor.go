@@ -25,7 +25,16 @@ type IconCursor struct {
 	grad                                                 *rasterx.Gradient
 	inTitleText, inDescText, inGrad, inDefs, inDefsStyle bool
 	currentDef                                           []definition
+	// useChain holds the IDs currently being expanded by nested use
+	// elements; it is used to detect circular use references.
+	useChain map[string]bool
+	// useDepth tracks the nesting depth of use element expansion and is
+	// bounded by maxUseDepth to prevent runaway recursion.
+	useDepth int
 }
+
+// maxUseDepth is the maximum number of nested use expansions allowed.
+const maxUseDepth = 16
 
 // ReadGradURL reads an SVG format gradient url
 // Since the context of the gradient can affect the colors
@@ -354,8 +363,11 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	if err != nil {
 		e := fmt.Sprintf("error during processing svg element %s: %s", se.Name.Local, err.Error())
 		if c.returnError(e) {
-			err = errors.New(e)
+			// StrictErrorMode: surface the error to the caller.
+			return errors.New(e)
 		}
+		// WarnErrorMode has logged the message and IgnoreErrorMode skips it;
+		// in both cases parsing continues.
 		err = nil
 	}
 

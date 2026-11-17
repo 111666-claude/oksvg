@@ -65,10 +65,10 @@ func ReadIconStream(stream io.Reader, errMode ...ErrorMode) (*SvgIcon, error) {
 			// pop style
 			cursor.StyleStack = cursor.StyleStack[:len(cursor.StyleStack)-1]
 			switch se.Name.Local {
-			case "g":
+			case "g", "symbol":
 				if cursor.inDefs {
 					cursor.currentDef = append(cursor.currentDef, definition{
-						Tag: "endg",
+						Tag: "end" + se.Name.Local,
 					})
 				}
 			case "title":

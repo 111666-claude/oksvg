@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200 200">
+  <defs>
+    <symbol id="ok" viewBox="0 0 50 50" width="50" height="50">
+      <rect x="0" y="0" width="50" height="50" fill="teal"/>
+    </symbol>
+    <symbol id="zero" viewBox="0 0 50 50">
+      <rect x="0" y="0" width="50" height="50" fill="red"/>
+    </symbol>
+    <symbol id="neg" viewBox="0 0 50 50">
+      <rect x="0" y="0" width="50" height="50" fill="orange"/>
+    </symbol>
+  </defs>
+
+  <!-- No width/height on the use: falls back to the symbol's 50x50. -->
+  <use href="#ok" x="10" y="10"/>
+  <!-- Zero width: instance must not render. -->
+  <use href="#zero" x="80" y="10" width="0" height="50"/>
+  <!-- Negative height: instance must not render. -->
+  <use href="#neg" x="140" y="10" width="50" height="-5"/>
+  <!-- Unknown reference: handled per ErrorMode. -->
+  <use href="#missing" x="10" y="100" width="50" height="50"/>
+</svg>

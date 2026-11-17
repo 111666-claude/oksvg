@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100">
+  <defs>
+    <!-- Only three numbers and a zero width: illegal viewBox. -->
+    <symbol id="badVB" viewBox="0 0 100 0">
+      <rect x="0" y="0" width="100" height="100" fill="purple"/>
+    </symbol>
+    <!-- Illegal preserveAspectRatio value. -->
+    <symbol id="badPAR" viewBox="0 0 50 50" preserveAspectRatio="bogus meet">
+      <rect x="0" y="0" width="50" height="50" fill="pink"/>
+    </symbol>
+  </defs>
+  <use href="#badVB" x="0" y="0" width="50" height="50"/>
+  <use href="#badPAR" x="50" y="50" width="50" height="50"/>
+</svg>
